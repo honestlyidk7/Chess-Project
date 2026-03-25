@@ -261,12 +261,12 @@ class Board:
         if piece is None or piece.kind != "Pawn":
             return
 
-        values = {
-            "Queen": 9,
-            "Rook": 5,
-            "Bishop": 3,
-            "Knight": 3
-        }
+        values = (
+            "Queen",
+            "Rook",
+            "Bishop",
+            "Knight"
+        )
 
         if new_kind not in values:
             return
@@ -274,7 +274,6 @@ class Board:
         self.structure[row][col] = Piece(
             color=piece.color,
             kind=new_kind,
-            value=values[new_kind],
             is_captured=False,
             has_moved=True
         )
