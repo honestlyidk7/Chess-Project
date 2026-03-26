@@ -23,10 +23,11 @@ class Game:
     move_input: str = ""
     board: Board = field(default_factory=Board)
     checkmate: bool = False
-    stalemate: bool = False
+    draw: bool = False
+    draw_reason: str | None = None
     move_history: list = field(default_factory=list)
     halfmove_clock: int = 0
-    
+    position_counts: dict = field(default_factory=dict)
 
     def fen_fields(self):
         piece_placement = self.board.fen_piece_placement()
@@ -35,7 +36,6 @@ class Game:
         en_passant = self.board.en_passant_fen_square()
         halfmove = str(self.halfmove_clock)
         fullmove = str(len(self.move_history) // 2 + 1)
-
         return (
             piece_placement,
             turn,
@@ -44,6 +44,13 @@ class Game:
             halfmove,
             fullmove
         )
+
+    def repetition_key(self):
+        piece_placement, turn, castling_rights, en_passant, _, _ = self.fen_fields()
+        return (piece_placement, turn, castling_rights, en_passant)
+
+    def export_fen(self):
+        return " ".join(self.fen_fields())
 
     def prompt_move(self):
         if self.turn == "White":
@@ -276,42 +283,61 @@ class Game:
 
             self.board.display_board()
 
-            if record.piece == "Pawn" or record.capture:
-                self.halfmove_clock = 0
-            else:
-                self.halfmove_clock += 1
-            
-            if self.halfmove_clock >= 100:
-                print("50 move rule reached.")
-                self.stalemate = True
-            
-            white_pieces, black_pieces = self.board.remaining_pieces()
-            white_pieces = sorted(white_pieces)
-            black_pieces = sorted(black_pieces)
+                
 
-            draw_conditions = [
-                (["King"], ["King"]),
-                (["Bishop", "King"], ["King"]),
-                (["King"], ["Bishop", "King"]),
-                (["King", "Knight"], ["King"]),
-                (["King"], ["King", "Knight"]),
-            ]
-
-            if (white_pieces, black_pieces) in draw_conditions:
-                print("Insufficient material.")
-                self.stalemate = True
-
-            if not self.stalemate:
-                self.stalemate = self.board.is_stalemate(self.turn)
             if self.board.is_check(self.turn):
                 self.checkmate = self.board.is_checkmate(self.turn)
+
+            if not self.checkmate:
+                if self.halfmove_clock >= 100:
+                    self.draw = True
+                    self.draw_reason = "50 move rule"
+
+                white_pieces, black_pieces = self.board.remaining_pieces()
+                white_pieces = sorted(white_pieces)
+                black_pieces = sorted(black_pieces)
+
+                draw_conditions = [
+                    (["King"], ["King"]),
+                    (["Bishop", "King"], ["King"]),
+                    (["King"], ["Bishop", "King"]),
+                    (["King", "Knight"], ["King"]),
+                    (["King"], ["King", "Knight"]),
+                ]
+                
+                if not self.draw and (white_pieces, black_pieces) in draw_conditions:
+                    self.draw = True
+                    self.draw_reason = "insufficient material"
+
+                if not self.draw:
+                    current_key = self.repetition_key()
+                    self.position_counts[current_key] = self.position_counts.get(current_key, 0) + 1
+                    if self.position_counts[current_key] >= 3:
+                        self.draw = True
+                        self.draw_reason = "threefold repetition"
+
+                if not self.draw:
+                    self.draw = self.board.is_stalemate(self.turn)
+                    if self.draw:
+                        self.draw_reason = "stalemate"
+
+
             return
         
     def play_game(self):
-        while not self.checkmate and not self.stalemate:
+        current_key = self.repetition_key()
+        self.position_counts[current_key] = 1
+        draw_dict = {
+            "stalemate": "Game is over, it is a stalemate!",
+            "50 move rule": "50 move rule reached, game ends in a draw.",
+            "insufficient material": "Insufficient material, game ends in a draw.",
+            "threefold repetition": "Threefold repetition, game ends in a draw."
+        }
+
+        while not self.checkmate and not self.draw:
             self.play_turn()
-        if self.stalemate:
-            print("Game is over, it is a stalemate!")
+        if self.draw:
+            print(draw_dict[self.draw_reason])
         if self.checkmate:
             if self.turn == "White":
                 self.turn = "Black"
