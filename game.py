@@ -25,6 +25,25 @@ class Game:
     checkmate: bool = False
     stalemate: bool = False
     move_history: list = field(default_factory=list)
+    halfmove_clock: int = 0
+    
+
+    def fen_fields(self):
+        piece_placement = self.board.fen_piece_placement()
+        turn = "w" if self.turn == "White" else "b"
+        castling_rights = self.board.castling_rights_string()
+        en_passant = self.board.en_passant_fen_square()
+        halfmove = str(self.halfmove_clock)
+        fullmove = str(len(self.move_history) // 2 + 1)
+
+        return (
+            piece_placement,
+            turn,
+            castling_rights,
+            en_passant,
+            halfmove,
+            fullmove
+        )
 
     def prompt_move(self):
         if self.turn == "White":
@@ -257,7 +276,33 @@ class Game:
 
             self.board.display_board()
 
-            self.stalemate = self.board.is_stalemate(self.turn)
+            if record.piece == "Pawn" or record.capture:
+                self.halfmove_clock = 0
+            else:
+                self.halfmove_clock += 1
+            
+            if self.halfmove_clock >= 100:
+                print("50 move rule reached.")
+                self.stalemate = True
+            
+            white_pieces, black_pieces = self.board.remaining_pieces()
+            white_pieces = sorted(white_pieces)
+            black_pieces = sorted(black_pieces)
+
+            draw_conditions = [
+                (["King"], ["King"]),
+                (["Bishop", "King"], ["King"]),
+                (["King"], ["Bishop", "King"]),
+                (["King", "Knight"], ["King"]),
+                (["King"], ["King", "Knight"]),
+            ]
+
+            if (white_pieces, black_pieces) in draw_conditions:
+                print("Insufficient material.")
+                self.stalemate = True
+
+            if not self.stalemate:
+                self.stalemate = self.board.is_stalemate(self.turn)
             if self.board.is_check(self.turn):
                 self.checkmate = self.board.is_checkmate(self.turn)
             return

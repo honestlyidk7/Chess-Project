@@ -86,6 +86,136 @@ class Board:
                 if square is not None and square.kind == "King" and square.color == color:
                     return [row_index, col_index]
 
+    #finds remainig pieces on the board for each color
+    def remaining_pieces(self):
+        white = []
+        black = []
+
+        for row in self.structure:
+            for square in row:
+                if square is None:
+                    continue
+                if square.color == "White":
+                    white.append(square)
+                else:
+                    black.append(square)
+
+        return white, black
+
+    #returns FEN string for piece placement
+    def fen_piece_placement(self):
+        piece_dict = {
+            "Pawn": "P",
+            "Knight": "N",
+            "Bishop": "B",
+            "Rook": "R",
+            "Queen": "Q",
+            "King": "K"
+        }
+
+        fen_rows = []
+
+        for row in self.structure:
+            row_fen = ""
+            none_counter = 0
+
+            for square in row:
+                if square is None:
+                    none_counter += 1
+                else:
+                    if none_counter > 0:
+                        row_fen += str(none_counter)
+                        none_counter = 0
+
+                    piece_letter = piece_dict[square.kind]
+                    if square.color == "Black":
+                        piece_letter = piece_letter.lower()
+
+                    row_fen += piece_letter
+
+            if none_counter > 0:
+                row_fen += str(none_counter)
+
+            fen_rows.append(row_fen)
+
+        return "/".join(fen_rows)
+
+    #returns FEN string for castling rights
+    def castling_rights_string(self):
+        castle_string = ""
+
+        white_king = self.square_check(7, 4)
+        white_rook_q = self.square_check(7, 0)
+        white_rook_k = self.square_check(7, 7)
+
+        black_king = self.square_check(0, 4)
+        black_rook_q = self.square_check(0, 0)
+        black_rook_k = self.square_check(0, 7)
+
+        if (
+            white_king is not None
+            and white_king.kind == "King"
+            and white_king.color == "White"
+            and not white_king.has_moved
+            and white_rook_k is not None
+            and white_rook_k.kind == "Rook"
+            and white_rook_k.color == "White"
+            and not white_rook_k.has_moved
+        ):
+            castle_string += "K"
+
+        if (
+            white_king is not None
+            and white_king.kind == "King"
+            and white_king.color == "White"
+            and not white_king.has_moved
+            and white_rook_q is not None
+            and white_rook_q.kind == "Rook"
+            and white_rook_q.color == "White"
+            and not white_rook_q.has_moved
+        ):
+            castle_string += "Q"
+
+        if (
+            black_king is not None
+            and black_king.kind == "King"
+            and black_king.color == "Black"
+            and not black_king.has_moved
+            and black_rook_k is not None
+            and black_rook_k.kind == "Rook"
+            and black_rook_k.color == "Black"
+            and not black_rook_k.has_moved
+        ):
+            castle_string += "k"
+
+        if (
+            black_king is not None
+            and black_king.kind == "King"
+            and black_king.color == "Black"
+            and not black_king.has_moved
+            and black_rook_q is not None
+            and black_rook_q.kind == "Rook"
+            and black_rook_q.color == "Black"
+            and not black_rook_q.has_moved
+        ):
+            castle_string += "q"
+
+        if castle_string == "":
+            return "-"
+
+        return castle_string
+
+    #returns FEN string for en passant square
+    def en_passant_fen_square(self):
+        if self.en_passant_target is None:
+            return "-"
+
+        row, col = self.en_passant_target
+        file_letter = chr(ord("a") + col)
+        rank_number = str(8 - row)
+
+        return file_letter + rank_number
+            
     #helps with rook/bishop/queen scanning logic for is_attacked, similar to moves_in_direction
     def is_attacked_helper(self, victim_color, row, col, d_row, d_col):
         current_row = row + d_row
